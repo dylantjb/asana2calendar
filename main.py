@@ -9,10 +9,10 @@ import caldav
 
 config = configparser.ConfigParser()
 if "XDG_CONFIG_DIR" in os.environ:
-    config.read(str(os.environ["XDG_CONFIG_DIR"] + "/asana2caldav/config.ini"))
+    config.read(str(os.environ["XDG_CONFIG_DIR"] + "/asana2calendar/config.ini"))
 else:
-    config.read(str(os.environ["HOME"] + "/.config/asana2caldav/config.ini"))
-settings = dict(config.items("asana2caldav"))
+    config.read(str(os.environ["HOME"] + "/.config/asana2calendar/config.ini"))
+settings = dict(config.items("asana2calendar"))
 
 
 class Task:
