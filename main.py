@@ -2,6 +2,7 @@
 import configparser
 import os
 from datetime import date, datetime, timedelta
+from inspect import signature
 
 import asana
 import caldav
@@ -12,6 +13,76 @@ if "XDG_CONFIG_DIR" in os.environ:
 else:
     config.read(str(os.environ["HOME"] + "/.config/asana2caldav/config.ini"))
 settings = dict(config.items("asana2caldav"))
+
+
+class Task:
+    def __init__(self, gid, name, due_on, start_on, modified_on, completed):
+        self._id = gid
+        self._name = name
+        self._due_on = due_on
+        self._start_on = start_on
+        self._modified_on = modified_on
+        self._completed = completed
+
+    def __str__(self):
+        return {
+            "gid": self._id,
+            "name": self._name,
+            "due_on": self._due_on,
+            "start_on": self._start_on,
+            "modified_on": self._modified_on,
+            "completed": self._completed,
+            "resource_type": "task",
+            "resource_subtype": "default_task",
+        }
+
+    @staticmethod
+    def convert_datetime(date_str):
+        return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    @staticmethod
+    def convert_datestr(date_time):
+        return date_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+
+    @property
+    def due_on(self):
+        return self.convert_datetime(self._due_on)
+
+    @due_on.setter
+    def due_on(self, due_on):
+        self._due_on = self.convert_datestr(due_on)
+
+    @property
+    def start_on(self):
+        return self.convert_datetime(self._start_on)
+
+    @start_on.setter
+    def start_on(self, start_on):
+        self._start_on = self.convert_datestr(start_on)
+
+    @property
+    def modified_on(self):
+        return self.convert_datetime(self._modified_on)
+
+    @modified_on.setter
+    def modified_on(self, modified_on):
+        self._modified_on = self.convert_datestr(modified_on)
+
+    @property
+    def completed(self):
+        return self._completed
+
+    @completed.setter
+    def completed(self, completed):
+        self._completed = completed
 
 
 class Project:
@@ -36,36 +107,35 @@ class Project:
         """Obtains all henceforth tasks associated with the project.
         Retrieves other useful fields.
 
-        Returns Generator objects representing asana tasks.
+        Returns Task objects representing asana tasks.
         """
-        return self._client.tasks.get_tasks_for_project(
-            self._project_id,
-            opt_fields=[
-                "name",
-                "due_at",
-                "start_at",
-                "modified_on",
-                "completed",
-                "sort_by=due_date"
-                f"due_at.after={datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ')}",
-            ],
-        )
+        fields = list(signature(Task.__init__).parameters.keys())[1:]
+        return [
+            Task(*map(task.get, fields))
+            for task in self._client.tasks.get_tasks_for_project(
+                self._project_id,
+                opt_fields=fields
+                + [
+                    "sort_by=due_date",
+                    f"due_on.after={datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ')}",
+                ],
+            )
+        ]
 
     def create_tasks(self, *tasks):
         """Creates tasks with supplied metadata in the project."""
         for task in tasks:
-            task["projects"] = self._project_id
-            self._client.tasks.create_task(task)
+            self._client.tasks.create_task(str(task) | {"projects": self._project_id})
 
     def delete_tasks(self, *tasks):
         """Delete tasks from project using task ID."""
         for task in tasks:
-            self._client.tasks.delete(task["gid"])
+            self._client.tasks.delete(task.id)
 
-    def update_tasks(self, **tasks):
+    def update_tasks(self, *tasks):
         """Update tasks with supplied metadata in the project."""
-        for task, data in tasks.items():
-            self._client.tasks.update(task["gid"], data)
+        for task in tasks:
+            self._client.tasks.update(task.id, str(task))
 
 
 def main(principle, name):
@@ -91,6 +161,8 @@ def main(principle, name):
     # IF has event no link in caldav THEN create task in project
 
     tasks = proj.get_tasks()
+    for i in tasks:
+        print(i.name)
     events = cal.search(
         start=datetime.now(),
         end=datetime(date.today().year + 1, 1, 1),
