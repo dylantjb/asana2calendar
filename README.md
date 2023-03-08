@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 3. Run the `asana2calendar.py` script.
 ```bash
-python asana2calendar/asana2calendar.py
+python asana2calendar/__main__.py
 ```
 
 ## TODO
@@ -35,4 +35,3 @@ python asana2calendar/asana2calendar.py
 
 ## License
 This project is licensed under the GPLv3 License. See [LICENSE.txt](LICENSE.txt) for more information.
-

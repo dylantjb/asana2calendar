@@ -1,3 +1,16 @@
+"""
+sync.py - A tool for synchronizing events between multiple calendars.
+
+This file provides a command line interface for synchronizing events between multiple
+calendars, including Google Calendar and Microsoft Outlook. It uses the CalDAV protocol
+for syncing and SQLAlchemy as the database ORM.
+
+The tool provides the following functionality:
+- Two-way syncing of events between multiple calendars
+- Support for multiple calendars and events per calendar
+- Customizable database creation
+- Plugin architecture for extending functionality
+"""
 class CalendarSync:
     def __init__(self, calendars, conn):
         self.conn = conn
