@@ -50,14 +50,14 @@ If you are proposing a feature:
 
 ## Get Started!
 
-Ready to contribute? Here's how to set up [asana2calendar]{.title-ref}
+Ready to contribute? Here's how to set up asana2calendar
 for local development.
 
-1.  Fork the [asana2calendar]{.title-ref} repo on GitHub.
+1.  Fork the asana2calendar repo on GitHub.
 
 2.  Clone your fork locally:
 
-    ``` shell
+    ``` bash
     $ git clone git@github.com:your_name_here/asana2calendar.git
     ```
 
@@ -65,35 +65,35 @@ for local development.
     virtualenvwrapper installed, this is how you set up your fork for
     local development:
 
-    ``` shell
-    $ mkvirtualenv asana2calendar
+    ``` bash
     $ cd asana2calendar/
-    $ python setup.py develop
+    $ python -m venv venv
+    $ . venv/bin/activate
+    $ make install
     ```
 
 4.  Create a branch for local development:
 
-    ``` shell
+    ``` bash
     $ git checkout -b name-of-your-bugfix-or-feature
     ```
 
     Now you can make your changes locally.
 
 5.  When you're done making changes, format your code, and check that
-    your changes pass pylint and the tests:
+    your changes pass all linters and the tests:
 
-    ``` shell
-    $ black asana2calendar tests
-    $ isort asana2calendar tests
-    $ pylint asana2calendar tests
-    $ python setup.py test or pytest
+    ``` bash
+    make format
+    make # lints and tests
     ```
 
-    To get pylint, black, and isort, just pip install them into your virtualenv.
+    To get these programs pip install them using 
+
 
 6.  Commit your changes and push your branch to GitHub:
 
-    ``` shell
+    ``` bash
     $ git add .
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
@@ -118,7 +118,7 @@ Before you submit a pull request, check that it meets these guidelines:
 
 To run a subset of tests:
 
-``` shell
+``` bash
 $ pytest tests.test_asana2calendar
 ```
 

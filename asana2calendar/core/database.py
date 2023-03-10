@@ -5,10 +5,8 @@ Requirements: Python 3.x
 """
 from sqlite3 import connect
 
-from asana2calendar.core.config import get_enabled_plugins
 
-
-def create_tables(db_path, config_file_path):
+def create_tables(db_path, enabled_plugins):
     """
     Creates tables in the SQLite database specified by `db_path`.
     The tables are created based on the enabled plugins specified in the configuration file
@@ -21,18 +19,19 @@ def create_tables(db_path, config_file_path):
     Returns:
         None
     """
-    enabled_plugins, _ = get_enabled_plugins(config_file_path)
     conn = connect(db_path)
     cursor = conn.cursor()
 
-    id_query = ""
-    foreign_query = ""
-    for plugin, _ in enabled_plugins:
-        id_query += f"{plugin}_id INTEGER, "
-        foreign_query += f"FOREGIN KEY(f{plugin}_id) REFERENCES {plugin}(id), "
+    id_statement = []
+    foreign_statement = []
+    for plugin_name in enabled_plugins:
+        id_statement.append(f", {plugin_name}_id INTEGER")
+        foreign_statement.append(
+            f", FOREIGN KEY({plugin_name}_id) REFERENCES {plugin_name}(id)"
+        )
         cursor.execute(
             f"""
-            CREATE TABLE {plugin} (
+            CREATE TABLE {plugin_name} (
                 id INTEGER PRIMARY KEY,
                 date DATE,
                 event VARCHAR(255),
@@ -46,9 +45,9 @@ def create_tables(db_path, config_file_path):
         )
 
     cursor.execute(
-        "CREATE TABLE event_connection ( id INTEGER PRIMARY KEY, "
-        + id_query
-        + foreign_query
+        "CREATE TABLE event_connection ( id INTEGER PRIMARY KEY"
+        + "".join(id_statement)
+        + "".join(foreign_statement)
         + " )"
     )
 
@@ -57,3 +56,13 @@ def create_tables(db_path, config_file_path):
 
     # Close the connection
     conn.close()
+
+
+def fetch_database(db_path, enabled_plugins):
+    conn = connect(db_path)
+    cursor = conn.cursor()
+    for plugin_name in enabled_plugins:
+        cursor.execute(f"PRAGMA table_info('{plugin_name}');")
+        if cursor.fetchone() is None:
+            raise ValueError("Tables in database not configured correctly.")
+    return conn

@@ -5,8 +5,14 @@ Requirements: Python 3.x
 """
 import configparser
 import importlib
-import sys
-from os.path import exists
+import re
+
+
+def load_config(config_file_path):
+    config = configparser.ConfigParser()
+    assert config_file_path.exists()
+    config.read(config_file_path)
+    return config
 
 
 def get_enabled_plugins(config_file_path):
@@ -19,26 +25,58 @@ def get_enabled_plugins(config_file_path):
 
     Returns:
         A tuple containing a list of enabled plugins and the parsed configparser object.
-
-    Raises:
-        FileNotFoundError: If the specified config file does not exist.
-        configparser.NoSectionError: If the 'plugins' section is missing from the config file.
     """
-    config = configparser.ConfigParser()
-    if not exists(config_file_path):
-        raise FileNotFoundError("No config file detected in correct path.")
-    config.read(config_file_path)
+    config = load_config(config_file_path)
 
     # Load enabled plugins from 'plugins' section
     try:
-        return [
-            k for k, v in dict(config.items("plugins")).items() if v == "true"
-        ], config
-    except configparser.NoSectionError:
-        sys.exit("No plugin section.")
+        enabled = [k for k, v in dict(config.items("plugins")).items() if v == "True"]
+    except configparser.NoSectionError as exc:
+        raise SystemExit("No plugin section in configuration file.") from exc
+
+    return {enb: dict(config.items(enb)) for enb in enabled}
 
 
-def load_config(config_file_path):
+def validate_plugins(plugins):
+    regex_fields = {
+        "asana": {"pat": r"^1/(\d{16}):([0-9a-f]{32})$"},
+        "caldav": {"url": r"^(webcal[s]?|http[s]?):\/\/(?:[\w-]+\.)+[a-z]{2,}"},
+    }
+    required_fields = {
+        "asana": ["pat", "name"],
+        "caldav": ["url", "username", "password"],
+    }
+
+    if len(plugins) < 2 or "asana" not in plugins.keys():
+        raise SystemExit(
+            "At least two plugins must be enabled and the asana plugin is required."
+        )
+
+    for plugin_name, data in plugins.items():  # validate all the fields
+        try:
+            fields = required_fields[plugin_name]
+        except KeyError:
+            print(f'Plugin "{plugin_name}" is unknown.')
+            continue
+
+        for field in fields:
+            try:
+                config_field = data[field]
+            except KeyError:
+                print(f'Field "{field}" is required for "{plugin_name}" plugin.')
+                return False
+
+            try:
+                regex_field = re.compile(regex_fields[plugin_name][field])
+                if not regex_field.match(config_field):
+                    print(f"{plugin_name}: {field} does not conform to standard.")
+                    return False
+            except KeyError:  # No regex necesary for this field
+                pass
+    return True
+
+
+def parse_config(enabled_plugins):
     """
     Loads plugins from a configuration file and returns a list of plugin instances.
 
@@ -48,46 +86,25 @@ def load_config(config_file_path):
     Returns:
         A list of plugin instances.
 
-    Raises:
+    Throws:
         FileNotFoundError: If the configuration file cannot be found in the provided path.
-        NoSectionError: If the plugins section is not found.
-        ValueError: If less than two plugins are enabled and/or without the required fields.
-                    The required plugin must also be enabled.
-        KeyError: Section in configuration file is not recognised as a valid plugin.
     """
 
+    # {{ClassName: data}, }
     plugins = {}
+    print(enabled_plugins)
 
-    # Define the required plugins and fields
-    required_fields = {
-        "asana": ["pat", "name"],
-        "caldav": ["url", "username", "password"],
-    }
+    if validate_plugins(enabled_plugins):
+        for plugin_name in enabled_plugins:
+            plugin_module = importlib.import_module(
+                "asana2calendar.plugins." + plugin_name
+            )
+            plugin_class_name = plugin_name.title() + "Calendar"
+            plugins[getattr(plugin_module, plugin_class_name)] = dict(
+                enabled_plugins[plugin_name]
+            )
 
-    enabled_plugins, config = get_enabled_plugins(config_file_path)
-
-    # Check if required plugin is present and at least two plugins enabled
-    if len(enabled_plugins) < 2 or "asana" not in enabled_plugins:
-        raise ValueError(
-            "At least two plugins must be enabled and the plugin asana is required."
-        )
-
-    for plugin_name in enabled_plugins:
-        try:
-            for fields in required_fields[plugin_name]:
-                if all(field in fields for field in config[plugin_name]):
-                    raise ValueError(
-                        f'{plugin_name} must have fields: {", ".join(fields)}'
-                    )
-        except KeyError:
-            print(f'Unknown plugin "{plugin_name}".')
-            continue
-
-        plugin_module = importlib.import_module("plugins." + plugin_name)
-        plugin_class_name = plugin_name.title() + "Calendar"
-        plugins[getattr(plugin_module, plugin_class_name)] = dict(config[plugin_name])
-
-    # Return the list of plugin instances
+    print(plugins)
     return plugins
 
 
@@ -97,7 +114,7 @@ def create_config(path):
 
     The function prompts the user to enter configuration values for each section
     of the configuration file, and then writes the resulting configuration file
-    to disk. The user must create the 'asana_plugin' section and at least one other
+    to disk. The user must create the 'asana' section and at least one other
     section in order for the function to create a configuration file.
 
     Returns:
@@ -106,7 +123,8 @@ def create_config(path):
     config = configparser.ConfigParser()
 
     # Set the default values for each section
-    config["asana"] = {"api": "", "name": ""}
+    config["plugins"] = {}
+    config["asana"] = {"pat": "", "name": ""}
     config["caldav"] = {
         "username": "",
         "password": "",
@@ -117,13 +135,13 @@ def create_config(path):
     for section in config.sections():
         if section == "plugins":
             continue
-        choice = input(f'Create configuration for "{section}"? [Y/n]:')
+        choice = input(f'Create configuration for "{section}"? [Y/n]: ')
         if not choice.lower() == "n":
             for key in config[section]:
                 value = input(f"{key}: ")
                 if value:
                     config[section][key] = value
-            config["plugins"][section] = "true"
+            config["plugins"][section] = "True"
 
     # Make sure the user has created at least two sections and the asana plugin section
     if len(config["plugins"]) < 2 or not config["plugins"].get("asana"):
@@ -135,6 +153,3 @@ def create_config(path):
     # Write the config file to disk
     with open(path, "w", encoding="UTF") as configfile:
         config.write(configfile)
-
-
-# TODO: Validate fields to regex (e.g. urls, pat)

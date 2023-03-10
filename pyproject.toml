@@ -9,13 +9,10 @@ description = "An application for two-way sync between asana projects and caldav
 readme = "README.md"
 license = { text = "GNU General Public License v3" }
 requires-python = ">=3.7"
-authors = [
-    { name = "Dylan Barker", email = "dylan@dylantjb.com" },
-]
+authors = [{ name = "Dylan Barker", email = "dylan@dylantjb.com" }]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Environment :: Console",
-    "Environment :: Other Environment",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -23,6 +20,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
@@ -37,14 +35,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "black>=21.7.0",
-    "bump2version>=0.5.11",
     "isort>=5.12.0",
     "pylint>=2.16.3",
-    "pytest-cov>=2.10.1",
+    "pyright>=1.1.298"
+]
+test = [
+    "coverage[toml]",
     "pytest>=6.2.4",
-    "twine>=1.14.0",
-    "watchdog>=0.9.0",
-    "wheel>=0.33.6",
+    "pytest-cov>=2.10.1",
+    "pytest-mock>=3.10.0",
 ]
 
 [project.urls]
@@ -55,14 +54,23 @@ Source = "https://github.com/dylantjb/asana2calendar"
 [project.scripts]
 asana2calendar = "asana2calendar.__main__:main"
 
+[tool.pylint.'MESSAGES CONTROL']
+disable = "W0621, R0903"
+
 [tool.hatch.version]
 path = "asana2calendar/__about__.py"
 
 [tool.hatch.build]
 include = [
-  "asana2calendar/*.py",
+  "asana2calendar/**/*.py",
   "/tests",
 ]
-exclude = [
-  "*.db"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/CONTRIBUTING.md",
+  "/asana2calendar",
+  "/tests",
 ]
+

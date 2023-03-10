@@ -53,8 +53,10 @@ from datetime import date, datetime
 
 import caldav
 
+from .base import Calendar
 
-class CaldavCalendar:
+
+class CaldavCalendar(Calendar):
     """The CaldavCalendar class provides an interface to interact with a CalDAV calendar."""
 
     def __init__(self, principal):

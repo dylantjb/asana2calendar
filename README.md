@@ -7,21 +7,24 @@ This is a Python-based application that allows you to sync events between tasks 
 - Create your asana client ID by following the instructions [here](https://developers.asana.com/docs/personal-access-token).
 
 ## Installation
-*Package in the process of being uploaded to pip.*
-
-1. Clone the repository:
+1. Install the package with pip:
 ```bash
-git clone https://github.com/dylantjb/asana2calendar.git
+pip install asana2calendar
 ```
 
-2. Install the required Python packages using pip:
+2. Create your configuration using [config.example.ini] or with:
 ```bash
-pip install -r requirements.txt
+asana2calendar --create-config [CONFIG_PATH]
 ```
 
-3. Run the `asana2calendar.py` script.
+3. Create your database with:
 ```bash
-python asana2calendar/__main__.py
+asana2calendar --create-db [DB_PATH]
+```
+
+4. Run the package:
+```bash
+asana2calendar [-c [CONFIG_PATH]] [-d [DB_PATH]]
 ```
 
 ## TODO

@@ -30,7 +30,7 @@ from types import SimpleNamespace
 
 from asana import Client
 
-from asana2calendar.plugins.base_calendar import Calendar
+from .base import Calendar
 
 
 class AsanaEvent(SimpleNamespace):
