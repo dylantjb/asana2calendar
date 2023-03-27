@@ -1,17 +1,62 @@
 """Fetch tasks from project and creates an event in respective caldav calendar."""
 import argparse
-import os
+import json
+import re
+from getpass import getpass
+from importlib import import_module
 from pathlib import Path
 
+import keyring
+from platformdirs import PlatformDirs
+
 from .__about__ import __version__ as version
-from .core.config import (
-    create_config,
-    get_enabled_plugins,
-    parse_config,
-    validate_plugins,
-)
 from .core.database import create_tables, fetch_database
 from .core.sync import CalendarSync
+
+
+def config_caldav():
+    config_dict = {}
+    print("Configuring plugin: caldav")
+    config_dict["username"] = input("Username: ")
+    config_dict["password"] = getpass("Password: ")
+    while True:
+        config_dict["url"] = input("URL: ")
+        if not re.compile(r"^(webcal[s]?|http[s]?):\/\/(?:[\w-]+\.)+[a-z]{2,}").match(
+            config_dict["url"]
+        ):
+            print("URL does not match webdav specification.")
+        else:
+            break
+
+    keyring.set_password("asana2calendar", "caldav", json.dumps(config_dict))
+
+
+def delete_plugins(plugins):
+    for plugin_name in plugins:
+        keyring.delete_password("asana2calendar", plugin_name)
+
+
+def get_plugins():
+    plugin_dir = Path(__file__).resolve().parent / "plugins"
+    return [
+        f.stem
+        for f in plugin_dir.glob("*.py")
+        if f.name not in ("__init__.py", "base.py", "asana.py")
+    ]
+
+
+def get_enabled_plugins():
+    return [
+        plugin_name
+        for plugin_name in get_plugins()
+        if keyring.get_password("asana2calendar", plugin_name)
+    ]
+
+
+def get_calendar_class(plugin_name):
+    plugin_module = import_module("asana2calendar.plugins." + plugin_name)
+    plugin_class_name = plugin_name.title() + "Calendar"
+    return getattr(plugin_module, plugin_class_name)
 
 
 def main():
@@ -20,30 +65,7 @@ def main():
     creates a configuration file or database, loads the configuration file,
     creates an instance of the CalendarSync class, and starts the sync process.
     Usage:
-        To create a new configuration file, use the following command:
-        `python -m asana2calendar --create-config [<path>]`
-
-        To create a new database file, use the following command:
-        `python -m asana2calendar --create-db [<path>]`
-
-        To sync the calendar, use the following command:
-        `python -m asana2calendar [--config-file <path>] [--db-file <path>]`
     """
-
-    # Tries the XDG Base Directory Specification for unix systems
-    xdg_config_dir = Path(os.environ.get("XDG_CONFIG_DIR", "~/.config")).expanduser()
-    xdg_data_dir = Path(os.environ.get("XDG_DATA_DIR", "~/.local/share")).expanduser()
-    config_file = (
-        xdg_config_dir / "asana2calendar" / "config.ini"
-        if (xdg_config_dir.exists())
-        else Path.home() / ".asana2calendar" / "config.ini"
-    )
-    db_file = (
-        xdg_data_dir / "asana2calendar" / "sync.db"
-        if (xdg_data_dir.exists())
-        else Path.home() / ".asana2calendar" / "sync.db"
-    )
-
     # Create argparse parser
     parser = argparse.ArgumentParser(description="Sync Asana tasks with a calendar.")
 
@@ -55,78 +77,85 @@ def main():
         version=version,
         help="Show asana2calendar's version number and exit",
     )
+    parser = argparse.ArgumentParser(description="Plugin Configuration")
     parser.add_argument(
-        "-c",
-        "--config-file",
-        metavar="CONFIG_PATH",
-        default=config_file,
-        help="Custom path for the configuration file. "
-        "If not provided, the default path will be used.",
+        "-p",
+        "--plugins",
+        metavar="PLUGIN_NAME",
+        nargs="*",
+        help="Choose plugin(s).",
     )
     parser.add_argument(
         "-d",
-        "--db-file",
-        metavar="DB_PATH",
-        default=db_file,
-        help="Custom path for the database file.\n"
-        "If not provided, the default path will be used.",
+        "--delete",
+        metavar="PLUGIN_NAME",
+        nargs="*",
+        help="Delete the plugin(s) details.",
     )
     parser.add_argument(
-        "--create-config",
-        metavar="CONFIG_PATH",
-        nargs="?",
-        const=config_file,
-        help="Create a new configuration file. "
-        "If not provided, the default path will be used.",
-    )
-    parser.add_argument(
-        "--create-db",
-        metavar="DB_PATH",
-        nargs="?",
-        const=db_file,
-        help="Create a new database file. "
-        "Your configuration file will be used. Supply it with --config-file <path>.\n"
-        "If not provided, default paths will be used.",
+        "-s",
+        "--show",
+        action="store_true",
+        help="Show the plugin(s) details.",
     )
     args = parser.parse_args()
 
-    if args.create_config:
-        print(f"Generating configuration file at {args.create_config}...")
-        args.create_config.parent.mkdir(exist_ok=True)
-        create_config(args.create_config)
+    if args.delete:
+        delete_plugins(args.delete)
+        print("Plugins deleted.")
         return
 
-    if args.config_file.exists():
-        enabled_plugins = get_enabled_plugins(args.config_file)
-    else:
-        print(f"No configuration file not found at {args.config_file}")
+    if args.show:
+        for plugin_name in get_plugins():
+            print(f"Settings for {plugin_name}...")
+            data = keyring.get_password("asana2calendar", plugin_name)
+            assert data
+            if plugin_name == "caldav":
+                for k, value in json.loads(data).items():
+                    print(f"{k}: {value}")
+                print()
+                continue
+            get_calendar_class(plugin_name)(**json.loads(data)).showinfo()
+            print()
         return
 
-    if args.create_db:
-        if validate_plugins(enabled_plugins):
-            print(f"Generating database file at {args.create_db}...")
-            if args.db_file.exists():
-                args.db_file.unlink()
-            create_tables(args.create_db, enabled_plugins)
-        else:
-            print("Invalid configuration. Fix or create one with --create-config.")
-        return
+    if args.init:
+        for plugin_name in args.init:
+            if plugin_name == "caldav":  # No OAuth for generic caldav calendar
+                config_caldav()
+                continue
+            keyring.set_password(
+                "asana2calendar",
+                plugin_name,
+                json.dumps(get_calendar_class(plugin_name)().TOKEN),
+            )
 
-    if args.config_file.exists() and args.config_file.exists():
-        plugins = parse_config(enabled_plugins)
-        try:
-            conn = fetch_database(args.db_file, list(enabled_plugins.keys()))
-        except ValueError as exc:
-            print(exc)
-            print("See --help to see how to create this.")
-            return
-    else:
-        print(
-            "Configuration or database files do not exist at default or supplied locations."
+        db_path = (
+            Path(PlatformDirs("asana2calendar", "dylantjb").user_data_dir) / "sync.db"
         )
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        if db_path.exists():
+            db_path.unlink()
+        create_tables(db_path, args.init)
         return
 
-    CalendarSync(plugins, conn).sync()
+        # enabled_plugins = get_plugins()
+        # db_path = (
+        #     Path(PlatformDirs("asana2calendar", "dylantjb").user_data_dir) / "sync.db"
+        # )
+        # if not (db_path and enabled_plugins):
+        #     print("Run --set to setup your desired plugins.")
+        # conn = fetch_database(db_path, enabled_plugins)
+
+        # plugins = {}
+        # for plugin_name in enabled_plugins:
+        #     data = keyring.get_password("asana2calendar", plugin_name)
+        #     assert data
+        #     plugins[get_calendar_class(plugin_name)] = json.loads(data)
+
+        # CalendarSync(conn, **plugins)
+
+    # CalendarSync(plugins, conn).sync()
 
 
 if __name__ == "__main__":

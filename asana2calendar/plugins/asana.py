@@ -25,7 +25,10 @@ Example Usage:
     ```
 """
 
-from datetime import datetime
+import os
+import sys
+import webbrowser
+from datetime import date, datetime
 from types import SimpleNamespace
 
 from asana import Client
@@ -58,54 +61,65 @@ class AsanaEvent(SimpleNamespace):
             "completed": self.completed,
         }
 
-    @property
-    def due_on(self):
-        """Returns the due date of the task as a datetime object."""
-        return datetime.strptime(self.due_on, "%Y-%m-%dT%H:%M:%S.%fZ")
 
-    @due_on.setter
-    def due_on(self, due_on):
-        """Sets the due date of the task to the given datetime object."""
-        self.due_on = due_on.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-    @property
-    def start_on(self):
-        """Returns the start date of the task as a datetime object."""
-        return datetime.strptime(self.start_on, "%Y-%m-%dT%H:%M:%S.%fZ")
-
-    @start_on.setter
-    def start_on(self, start_on):
-        """Sets the start date of the task to the given datetime object."""
-        self.start_on = start_on.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-    @property
-    def modified_on(self):
-        """Returns the date when the task was last modified as a datetime object."""
-        return datetime.strptime(self.modified_on, "%Y-%m-%dT%H:%M:%S.%fZ")
-
-    @modified_on.setter
-    def modified_on(self, modified_on):
-        """Sets the date when the task was last modified to the given datetime object."""
-        self.modified_on = modified_on.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-
-class AsanaCalendar(Calendar):
+class AsanaCalendar:
     """Represents a calendar synchronized with Asana tasks."""
+
+    URL = "https://auth.dylantjb.com"
 
     # pylint: disable=no-member
 
-    def __init__(self, token, name):
+    def __init__(self, **token):
         """
         Initializes a new instance of the AsanaCalendar class.
 
         Args:
             - token (str): The personal access token to authenticate with Asana API.
-            - name (str): The name of the project in Asana that contains the tasks to
-                          be synchronized with the calendar.
         """
-        self._client = Client.access_token(token)
+        self._client = Client.oauth(
+            client_id=1204150703591373,
+            token=self._get_token(token),
+        )
         self._client.headers = {"asana-enable": "new_memberships"}
-        self._project_id = self._get_project_id(name)
+        if os.environ.get("PROJECT"):
+            self._project_id = self._get_project_id(os.environ["PROJECT"])
+
+    @staticmethod
+    def _get_token(token):
+        if not token:
+
+        else:
+            client = Client.oauth(
+                client_id="1204150703591373",
+                client_secret="f34d55b1213adb6c3e34d76b8d116b2b",
+                redirect_uri="urn:ietf:wg:oauth:2.0:oob",
+            )
+
+            url, _ = client.session.authorization_url()
+            try:
+                webbrowser.open(url)
+            except webbrowser.Error:
+                print("Open the following URL in a browser to authorize:")
+                print(url)
+            code = input(
+                "Copy and paste the returned code from the browser and press enter: "
+            )
+            cls.TOKEN = client.session.fetch_token(code=code)
+            return client
+
+    def showinfo(self):
+        info = self._client.users.get_user("me")
+        print(f'gid: {info["gid"]}')
+        print(f'name: {info["name"]}')
+        print(f'email: {info["email"]}')
+
+    @staticmethod
+    def convert_to_datetime(string):
+        return datetime.strptime(string, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+    @staticmethod
+    def convert_to_datestring(time):
+        return time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     def _get_project_id(self, name):
         """Returns the globally unique identifier of the project with the given name."""
@@ -114,7 +128,11 @@ class AsanaCalendar(Calendar):
         )  # Paginator disabled without a workspace ID
         return [p for p in projects if p["name"] == name][0]["gid"]
 
-    def get_events(self, start_date, end_date):
+    def get_events(
+        self,
+        start_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        end_date=datetime(date.today().year + 1, 1, 1),
+    ):
         """Returns a list of events between the given start and end dates."""
         return [
             AsanaEvent(**task)
@@ -122,8 +140,8 @@ class AsanaCalendar(Calendar):
                 self._project_id,
                 opt_fields=AsanaEvent.data
                 + [
-                    "sort_by=due_date",
-                    f"due_on.after={datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%fZ')}",
+                    f"due_on.after={self.convert_to_datestring(start_date)}",
+                    f"due_on.before={self.convert_to_datestring(end_date)}",
                 ],
             )
         ]

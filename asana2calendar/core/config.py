@@ -92,7 +92,6 @@ def parse_config(enabled_plugins):
 
     # {{ClassName: data}, }
     plugins = {}
-    print(enabled_plugins)
 
     if validate_plugins(enabled_plugins):
         for plugin_name in enabled_plugins:
@@ -104,7 +103,6 @@ def parse_config(enabled_plugins):
                 enabled_plugins[plugin_name]
             )
 
-    print(plugins)
     return plugins
 
 

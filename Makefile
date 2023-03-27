@@ -1,34 +1,26 @@
-.DEFAULT_GOAL := all
 sources = asana2calendar tests
 
-.PHONY: install
+all: lint pylint
+
 install:
 	python -m pip install -U pip
 	pip install '.[dev,test]'
 
-.PHONY: format
 format:
 	isort $(sources) --profile black
 	black $(sources)
 
-.PHONY: lint
 lint:
 	isort $(sources) --profile black --check-only --df
 	black $(sources) --check --diff
 	pylint $(sources)
 
-.PHONY: pyright
 pyright:
 	pyright $(sources)
 
-.PHONY: test
 test:
 	pytest -s --cov-config=pyproject.toml $(addprefix --cov=,$(sources))
 
-.PHONY: all
-all: lint pylint
-
-.PHONY: clean
 clean:
 	rm -rf `find . -name __pycache__`
 	rm -f `find . -type f -name '*.py[co]'`

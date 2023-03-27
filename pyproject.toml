@@ -30,6 +30,9 @@ classifiers = [
 dependencies = [
     "asana~=3.1.1",
     "caldav~=1.2.0",
+    "keyring~=23.13.1",
+    "python-socketio~=5.7.2",
+    "websocket-client~=1.5.1",
 ]
 
 [project.optional-dependencies]

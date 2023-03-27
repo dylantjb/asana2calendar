@@ -35,7 +35,7 @@ class CalendarSync:  # pylint: disable=too-few-public-methods
             Updates a event in the calendar calendar.
     """
 
-    def __init__(self, calendars, conn):
+    def __init__(self, conn, **calendars):
         """
         Initializes a new instance of the CalendarSync class.
 
@@ -45,7 +45,8 @@ class CalendarSync:  # pylint: disable=too-few-public-methods
             conn (sqlite3.Connection): A SQLite database connection object.
         """
         self.conn = conn
-        self.calendars = [c(d) for c, d in calendars]
+        print(calendars.items())
+        # self.calendars = [c(d) for c, d in calendars.items()]
 
     def sync(self):
         """Syncs events between the two calendars."""

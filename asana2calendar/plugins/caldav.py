@@ -59,14 +59,22 @@ from .base import Calendar
 class CaldavCalendar(Calendar):
     """The CaldavCalendar class provides an interface to interact with a CalDAV calendar."""
 
-    def __init__(self, principal):
+    def __init__(self, **kwargs):
         """Initializes a new instance of the AsanaCalendar class.
 
         Args:
             principal: caldav.Principal object representing the user's calendar account.
         """
-        self.principal = principal
+        self.data = kwargs
+        self.principal = self.auth()
         self.calendars = self.principal.calendars()
+
+    def auth(self):
+        return caldav.DAVClient(
+            url=self.data["url"],
+            username=self.data["username"],
+            password=self.data["password"],
+        ).principal()
 
     def get_events(
         self, start_date=datetime.now(), end_date=datetime(date.today().year + 1, 1, 1)

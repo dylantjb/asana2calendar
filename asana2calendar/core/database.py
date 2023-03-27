@@ -23,23 +23,29 @@ def create_tables(db_path, enabled_plugins):
     cursor = conn.cursor()
 
     id_statement = []
-    foreign_statement = []
+    foreign_event_statement = []
+    foreign_attach_statement = []
     for plugin_name in enabled_plugins:
         id_statement.append(f", {plugin_name}_id INTEGER")
-        foreign_statement.append(
+        foreign_event_statement.append(
             f", FOREIGN KEY({plugin_name}_id) REFERENCES {plugin_name}(id)"
+        )
+        foreign_attach_statement.append(
+            f", FOREIGN KEY (event_id) REFERENCES {plugin_name}(id) ON DELETE CASCADE"
         )
         cursor.execute(
             f"""
             CREATE TABLE {plugin_name} (
                 id INTEGER PRIMARY KEY,
-                date DATE,
-                event VARCHAR(255),
-                location VARCHAR(255),
-                due_date DATETIME,
-                start_date DATETIME,
-                modified_date DATETIME,
-                completed BOOLEAN
+                summary TEXT NOT NULL,
+                start_time TIMESTAMP NOT NULL,
+                end_time TIMESTAMP NOT NULL,
+                duration INTERVAL,
+                location TEXT,
+                description TEXT,
+                rrule TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
@@ -47,7 +53,20 @@ def create_tables(db_path, enabled_plugins):
     cursor.execute(
         "CREATE TABLE event_connection ( id INTEGER PRIMARY KEY"
         + "".join(id_statement)
-        + "".join(foreign_statement)
+        + "".join(foreign_event_statement)
+        + " )"
+    )
+
+    cursor.execute(
+        """CREATE TABLE attachments (
+            id INTEGER PRIMARY KEY,
+            event_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            data BLOB NOT NULL,
+            mime_type TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"""
+        + "".join(foreign_attach_statement)
         + " )"
     )
 
@@ -66,3 +85,7 @@ def fetch_database(db_path, enabled_plugins):
         if cursor.fetchone() is None:
             raise ValueError("Tables in database not configured correctly.")
     return conn
+
+
+# TODO: Allow tables to be altered when new plugin is configured
+#       instead of erasing everything
